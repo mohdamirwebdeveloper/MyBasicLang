@@ -145,6 +145,7 @@ class Lexer:
 #################################
 # NODES
 #################################
+
 class NumberNode:
     def __init__(self, tok) -> None:
         self.tok = tok
@@ -152,12 +153,14 @@ class NumberNode:
         return f"{self.tok}"
 
 class BinaryOperationNode:
-    def __init__(self, right_node, left_node, op_tok) -> None:
-        self.right_node = right_node
+    def __init__(self, left_node, op_tok, right_node) -> None:
         self.left_node = left_node
         self.op_tok = op_tok
+        self.right_node = right_node
+
     def __repr__(self) -> str:
-        return f"{self.right_node}, {self.op_tok}, {self.left_node}"
+        return f"({self.left_node}, {self.op_tok}, {self.right_node})"
+
 
 #################################
 # Parser : A parser is a component that processes input data 
@@ -166,22 +169,82 @@ class BinaryOperationNode:
 #################################
 
 class Parser:
-    def __init__(self, tokens:list) -> None:
+    def __init__(self, tokens: list) -> None:
+        """
+        Initializes the parser with a list of tokens and sets up the starting state.
+        """
         self.tokens = tokens
         self.tok_index = -1
-        self.current_token = ""
+        self.current_token = None
         self.advance()
+
     def advance(self):
-        self.tok_index +=1
+        """
+        Moves to the next token in the list and updates the current token.
+        """
+        self.tok_index += 1
         if self.tok_index < len(self.tokens):
             self.current_token = self.tokens[self.tok_index]
         return self.current_token
-    def term():
-        pass
-    def exprasion():
-        pass
-    def factor():
-        pass
+
+    def parse(self):
+        """
+        Begins parsing by evaluating the highest precedence rule: the expression.
+        """
+        return self.expression()
+
+    def expression(self):
+        """
+        Parses the full expression, handling terms and lower-precedence operators like addition and subtraction.
+        This ensures addition and subtraction have lower precedence than multiplication/division.
+        """
+        return self.binary_operation(self.term, (TT_PLUS, TT_MINUS))
+
+    def term(self):
+        """
+        Parses terms in the expression, handling higher-precedence operations like multiplication and division.
+        This ensures that multiplication and division are evaluated before addition and subtraction.
+        """
+        return self.binary_operation(self.factor, (TT_MUL, TT_DIV))
+
+    def factor(self):
+        """
+        Parses a factor, which is the simplest unit (e.g., an integer, float, or subexpression).
+        Handles numbers and parentheses.
+        """
+        tok = self.current_token
+
+        if tok.type in (TT_INT, TT_FLOAT):
+            self.advance()
+            return NumberNode(tok)
+
+        elif tok.type == TT_LPAREN:
+            self.advance()
+            expr = self.expression()  # Parse the expression inside the parentheses
+            if self.current_token.type == TT_RPAREN:
+                self.advance()
+                return expr
+            else:
+                raise Exception("Expected ')'")
+
+    def binary_operation(self, func, ops):
+        """
+        Helper method to handle binary operations. It applies the function `func`
+        to get the left-hand side and then checks for operations in `ops` to continue
+        parsing binary expressions.
+        """
+        left = func()
+
+        while self.current_token is not None and self.current_token.type in ops:
+            op_tok = self.current_token
+            self.advance()
+            right = func()
+            left = BinaryOperationNode(left, op_tok, right)  # Maintain order: left first, then right
+
+        return left
+
+
+
 
 #################################
 # RUN
@@ -190,4 +253,8 @@ class Parser:
 def run(file_name, text):
     lexer = Lexer(file_name, text)
     tokens, error = lexer.make_tokens()
-    return tokens, error
+    if error: return None, error
+
+    parser = Parser(tokens)
+    ast = parser.parse()
+    return ast,None
